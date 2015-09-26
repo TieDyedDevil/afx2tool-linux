@@ -21,6 +21,22 @@ computer must first load a driver onto the Axe-FX. This driver loader
 can be enabled on your computer using the `afx2usb-linux` package;
 you'll need to install `afx2usb-linux` before using `afx2-tool`.
 
+Installation
+------------
+
+Copy the `afx2-tool` file to a directory on your $PATH. Typically this
+will be either ~/bin (some Linux distros set up user accounts with ~/bin
+on $PATH) or /usr/local/bin.
+
+In the first case, just copy or move the file.
+
+In the second case, it's easiest to use the `install` command:
+
+$ sudo install -m 755 <path-to>/afx2-tool /usr/local/bin
+
+You may also find it useful to stash this (`README.md`) file somewhere
+as a convenient reference.
+
 Operation
 ---------
 
