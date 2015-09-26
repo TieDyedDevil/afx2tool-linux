@@ -6,14 +6,15 @@ processors. The Mark 1, Mark 2, FX and FX+ models are all supported. You
 can use the `afx2-tool` to backup and restore individual patches, patch
 banks, user cabs (IRs) and system data.
 
+The `afx2-tool` is designed to run from the command line or a script.
+
 Prerequisites
 -------------
 
-The `afx2-tool` is a command-line script. In addition to the usual
-complement of Linux tools, `afx2-tool` also requires the `amidi`
-utility. The `afx2-tool` will check for the presence of `amidi`. If
-`amidi` is not installed on your system, check your package manager. The
-ALSA Utilities package usually contains `amidi`.
+In addition to the usual complement of Linux tools, `afx2-tool` requires
+the `amidi` utility. The `afx2-tool` will check for the presence of
+`amidi`. If `amidi` is not installed on your system, check your package
+manager.  The ALSA Utilities package usually contains `amidi`.
 
 Your Linux system must be connected to the Axe-FX via a USB cable. In
 order for your computer to be able to communicate with the Axe-FX, the
@@ -52,9 +53,32 @@ unsaved modifications in the edit buffer will be saved to the file.
 To export a preset not already in the edit buffer, `afx2-tool` first
 selects the preset.
 
+An unnamed preset is never saved by the export operation.
+
 The download operation saves the contents of the Axe-FX preset
 memory. Only the preset number is used to create the name of the file. The
 download operation never selects the preset to be downloaded.
+
+All presets, whether named or not, are saved by the download operation.
+
+Timestamps and Overwrites
+-------------------------
+
+Files of the same name are normally overwritten without warning. This is
+most useful in the case where you want your downloaded files to reflect
+the current state of your Axe-FX.
+
+If you add a `-t` option to the `afx2-tool` command line, each file name
+will be prefixed with a date and time. This is useful in case you wish to
+record a history of changes to your Axe-FX programming.
+
+Dependencies
+------------
+
+Your Axe-FX programming depends upon information stored in several places.
+A preset, for example, depends upon system settings and possibly a user
+cab. It is up to you to download all necessary files; the `afx2-tool` does
+not keep track of dependencies.
 
 Operation
 ---------
@@ -63,7 +87,10 @@ You'll need to know the MIDI channel number of your Axe-FX. You can find
 this at the top of the `I/O > MIDI` page on the front-panel display of
 your Axe-FX. The MIDI channel number defaults to 1 in both the Axe-FX
 and `afx2-tool`. If your Axe-FX uses a channel other than 1, inform
-`afx2-tool` via its `-c #` option.
+`afx2-tool` via its `-c #` option. Note that the MIDI channel number is
+needed only for the export operation; you may safely omit specifying a
+non-default MIDI channel if your `afx2-tool` command line does not have
+a `-E` or `-e` option.
 
 The `afx2-tool` uses MIDI sysex commands to transfer data. These
 commands do not address individual devices. Therefore, it is important
@@ -93,15 +120,15 @@ Example Commands
 ----------------
 
 ```
-$ afx2-tool -E
 # Export the currently-selected preset.
+$ afx2-tool -E
 
-$ afx2-tool -p 3-14,21 -s -i 9,12
 # Download patches 3 through 14 and 21, the system data and user
 #  cabs (IRs) 9 and 12.
+$ afx2-tool -p 3-14,21 -s -i 9,12
 
-$ afx2-tool -b A-C
 # Download patch banks A through C.
+$ afx2-tool -b A-C
 ```
 
 Current Implementation Status
