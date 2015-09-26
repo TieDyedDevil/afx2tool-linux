@@ -26,12 +26,13 @@ usage: $PGM ...
    -1           display offset 1
    -t           add timestamp to filename
   Actions
-   -P           download selected preset
+   -E           export selected preset
+   -e <#-set>   export individual preset(s)
    -b <B-set>   download preset bank(s)
    -p <#-set>   download individual preset(s)
    -i <#-set>   download user cab(s)
    -s           download system data
-   -u file ...  upload file(s)
+   -u <file>    upload file
   Other
    -h           help
 
@@ -65,6 +66,12 @@ which amidi > /dev/null || fail amidi not on \$PATH
 
 [ $# -eq 0 ] && usage
 
+function prompt () {
+	local reply
+	read -n 1 -s -p "$@; press any key " reply
+	echo [confirmed]
+}
+
 ##
 # Defaults
 ##
@@ -79,7 +86,9 @@ STAMP=
 ##
 
 PREFIX=F0000174
-HEADER_NIBBLES=$(( ${#PREFIX} + 2 ))
+PREFIX_NIBBLES=${#PREFIX}
+MODEL_NIBBLES=2
+HEADER_NIBBLES=$(( $PREFIX_NIBBLES + $MODEL_NIBBLES ))
 CMD_NIBBLES=2
 SUM_NIBBLES=2
 TRAILER=F7
@@ -87,6 +96,7 @@ TRAILER_NIBBLES=2
 CMD_GET_PRESET_NUMBER=14
 CMD_GET_PRESET_NAME=0F
 CMD_GET_EDIT_BUFFER=037F00
+CMD_GET_PRESET=03       # followed by 0-origin preset number (2 bytes)
 declare -A CMD_GET_SYSTEM_DATA
 CMD_GET_SYSTEM_DATA=(['03']=1C03, ['06']=43, ['07']=43)
 CMD_GET_PRESET_BANK=1C  # followed by 0-origin bank number
@@ -191,6 +201,32 @@ function make_bank_set () {
 }
 
 ##
+# File inquiries
+##
+
+# Read enough hex from the beginning of file to be used for identification.
+function read_ident_bytes () {
+	od -N 12 -A none -x --endian=big "$1"|tr -d ' '|tr 'abcdef' 'ABCDEF'
+}
+
+# Check whether the given file can be read by the connected Axe-FX.
+function check_compatible_file () {
+	local ident=`read_ident_bytes "$1"`
+	local prefix=${ident:0:$PREFIX_NIBBLES}
+	local model=${ident:$PREFIX_NIBBLES:$MODEL_NIBBLES}
+	[ $prefix = $PREFIX ] || fail not an Axe-FX file
+	[ $model = '03' ] && return
+	[ $MODEL = '03' ] && fail file not compatible with model
+}
+
+# Return true if the file is a preset file that will load into the edit buffer.
+function is_preset_file () {
+	local ident=`read_ident_bytes "$1"`
+	local check=${ident:$HEADER_NIBBLES:6}
+	[ $check = '777F00' ]
+}
+
+##
 # MIDI interface
 ##
 
@@ -244,13 +280,19 @@ function send_midi () {
 
 # Validate the checkum in a sysex message.
 function validate () {
-	local check=${1: -4:2}
+	local check=${1: -4:$SUM_NIBBLES}
 	local sum=`checksum ${1:0:-4}`
 	[ "$sum" = "$check" ]
 }
 
+# Discard input still in the MIDI receive buffer.
+function flush_input () {
+	[ -z "`amidi -p $PORT -d -t 1`" ] || flush_input
+}
+
 # Send a sysex command and receive the response.
 function send_cmd_recv_midi () {
+	flush_input
 	local resp=`amidi -p $PORT -S $1 -t 1 -d|tr -d ' '`
 	[ $? -eq 0 ] || fail MIDI send/receive error
 	validate $resp || fail checksum error
@@ -332,6 +374,13 @@ function get_edit_buffer () {
 	echo "$body`checksum $body`$TRAILER"
 }
 
+# Construct a sysex command to get a numbered preset.
+function get_preset () {
+	local presetnum=`encode $(( $1/128 ))``encode $(( $1%128 ))`
+	local body=$HEADER$CMD_GET_PRESET$presetnum
+	echo "$body`checksum $body`$TRAILER"
+}
+
 # Construct a sysex command to get the system data.
 function get_system_data () {
 	local body=$HEADER${CMD_GET_SYSTEM_DATA[$MODEL]}
@@ -361,9 +410,10 @@ function get_user_cab () {
 # Ask the AFX for its model number; build the header for other sysex commands.
 function init_for_afx_model () {
 	confirm_port
+	flush_input
 	local resp=$(send_cmd_recv_midi `get_model`)
 	[ -n "$resp" ] || fail no response from MIDI port
-	MODEL=${resp:8:2}
+	MODEL=${resp:8:$MODEL_NIBBLES}
 	check_model
 	HEADER=$PREFIX$MODEL
 }
@@ -380,7 +430,7 @@ function query_patch_filename () {
 	if [ -n "$name" ]; then
 		echo "$STAMP$number-$name.syx"
 	else
-		echo 1>&2 Patch $number has no name - skipping
+		echo 1>&2 "Patch $number has no name - skipping"
 		echo
 	fi
 }
@@ -411,14 +461,13 @@ function download_user_cab () {
 	send_cmd_recv_midi_to_file `get_user_cab $1` "$filename"
 }
 
-# Download the current preset to a file having the preset's number and name.
-function download_selected_preset () {
+# Download a numbered preset to a file.
+function download_preset () {
 	confirm_port
 	display_connection
-        local filename=`query_patch_filename`
-	[ -n "$filename" ] || return
+	local filename="${STAMP}Preset$1.syx"
 	echo -n "$filename"
-	send_cmd_recv_midi_to_file `get_edit_buffer` "$filename"
+	send_cmd_recv_midi_to_file `get_preset $1` "$filename"
 }
 
 # Download the system globals to a file.
@@ -428,6 +477,16 @@ function download_system_data () {
 	local filename="${STAMP}System.syx"
 	echo -n "$filename"
 	send_cmd_recv_midi_to_file `get_system_data` "$filename"
+}
+
+# Export the current preset to a file having the preset's number and name.
+function export_selected_preset () {
+	confirm_port
+	display_connection
+	local filename=`query_patch_filename`
+	[ -n "$filename" ] || return
+	echo -n "$filename"
+	send_cmd_recv_midi_to_file `get_edit_buffer` "$filename"
 }
 
 ##
@@ -445,12 +504,10 @@ function download_preset_banks () {
 
 # Download one or more presets.
 function download_preset_set () {
-	local orig=$(query_preset_number)
+	local p
 	for p in `make_integer_set $@`; do
-		select_preset $p
-		download_selected_preset
+		download_preset $p
 	done
-	select_preset $orig
 }
 
 # Download one or more user cabs.
@@ -462,16 +519,42 @@ function download_user_cab_set () {
 	done
 }
 
+# Export one or more presets.
+function export_preset_set () {
+	prompt "Mute connected amplifiers and monitors"
+	local orig=$(query_preset_number)
+	local p
+	for p in `make_integer_set $@`; do
+		select_preset $p
+		export_selected_preset
+	done
+	select_preset $orig
+}
+
+##
+# Upload interface
+##
+
+# Upload an Axe-FX II file.
+function upload_file () {
+	confirm_port
+	check_compatible_file "$1"
+	echo $(basename "$1")
+	amidi -p $PORT -s "$1"
+	echo "Uploaded"
+	is_preset_file "$1" && prompt "Save preset from front panel"
+}
+
 ##
 # Option initialization
 ##
 
-while getopts ":c:1tb:Pp:si:u:h" OPTION; do
+while getopts ":c:1tb:Ee:p:si:u:h" OPTION; do
 	case $OPTION in
 	  c) CHANNEL=$OPTARG ;;
 	  1) DISPLAY_OFFSET=1 ;;
 	  t) STAMP="`date +'%F@%R:%S'` " ;;
-	  b|P|p|s|i|u) ;;  # actions handled below
+	  b|E|e|p|s|i|u) ;;  # actions handled below
 	  h) help ;;
 	  *) fail invalid option -$OPTARG ;;
 	esac
@@ -483,15 +566,16 @@ init_for_afx_model
 ##
 
 OPTIND=1
-while getopts ":c:1tb:Pp:si:u:h" OPTION; do
+while getopts ":c:1tb:Ee:p:si:u:h" OPTION; do
 	case $OPTION in
-	  c|1|t) ;;        # settings handled above
-	  b) download_preset_banks $OPTARG ;;
-	  P) download_selected_preset ;;
+	  c|1|t) ;;          # settings handled above
+	  E) export_selected_preset ;;
+	  e) export_preset_set $OPTARG ;;
 	  p) download_preset_set $OPTARG ;;
+	  b) download_preset_banks $OPTARG ;;
 	  s) download_system_data ;;
 	  i) download_user_cab_set $OPTARG ;;
-	  u) fail file upload not yet implemented ;;
+	  u) upload_file $OPTARG ;;
 	  *) fail invalid option -$OPTARG ;;
 	esac
 done
