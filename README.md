@@ -70,6 +70,19 @@ on the command line match the patch numbers on your Axe-FX. If the
 lowest-numbered patch on your Axe-FX if patch 000, don't use the `-1`
 option.
 
+Example Commands
+----------------
+
+$ afx2-tool -P
+\# Download the currently-selected preset.
+
+$ afx2-tool -p 3-14,21 -s -i 9,12
+\# Download patches 3 through 14 and 21, the system data and user
+   cabs (IRs) 9 and 12.
+
+$ afx2-tool -b A-C
+\# Download patch banks A through C.
+
 Current Implementation Status
 -----------------------------
 
