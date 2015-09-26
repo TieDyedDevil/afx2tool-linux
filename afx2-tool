@@ -1,0 +1,497 @@
+#! /bin/bash
+
+# afx2-tool
+# Copyright 2015 David B. Lamkins <david@lamkins.net>
+#
+# This work is shared under the terms of the MIT License.
+
+VERSION=0.9.0
+
+##
+# Help and preflight
+##
+
+PGM=$(basename $0)
+
+function help () {
+	cat <<EOF
+$PGM $VERSION
+
+usage: $PGM ...
+
+  Options
+   -c #         MIDI channel (default: 1)
+   -1           display offset 1
+   -t           add timestamp to filename
+  Actions
+   -P           download selected preset
+   -b <B-set>   download preset bank(s)
+   -p <#-set>   download individual preset(s)
+   -i <#-set>   download user cab(s)
+   -s           download system data
+   -u file ...  upload file(s)
+  Other
+   -h           help
+
+  Options are processed before actions.
+
+  <#-set>: ranges of whole numbers
+    e.g.: 8
+          7,3,9
+          223-239
+          45-52,7,12-19,63,5
+  <B-set>: ranges of preset bank names
+    e.g.: C
+          A,D
+          D-F
+          B,D-E,H
+EOF
+	exit 1
+}
+
+function usage () {
+	echo "usage: $PGM -h|..."
+	exit 1
+}
+
+function fail () {
+	echo >&2 $PGM: $@
+	exit 1
+}
+
+which amidi > /dev/null || fail amidi not on \$PATH
+
+[ $# -eq 0 ] && usage
+
+##
+# Defaults
+##
+
+CHANNEL=1
+PORT=$( amidi -l|grep 'AXE-FX II MIDI'|awk '{ print $2 }' )
+DISPLAY_OFFSET=0
+STAMP=
+
+##
+# MIDI data
+##
+
+PREFIX=F0000174
+HEADER_NIBBLES=$(( ${#PREFIX} + 2 ))
+CMD_NIBBLES=2
+SUM_NIBBLES=2
+TRAILER=F7
+TRAILER_NIBBLES=2
+CMD_GET_PRESET_NUMBER=14
+CMD_GET_PRESET_NAME=0F
+CMD_GET_EDIT_BUFFER=037F00
+declare -A CMD_GET_SYSTEM_DATA
+CMD_GET_SYSTEM_DATA=(['03']=1C03, ['06']=43, ['07']=43)
+CMD_GET_PRESET_BANK=1C  # followed by 0-origin bank number
+CMD_GET_USER_CAB=19     # followed by 0-origin cab number (2 bytes XL/XL+)
+INQUIRY_MODEL=7F
+CMD_INQUIRY=00
+
+declare -a MODELS
+MODELS=('03' '06' '07')
+declare -A MODEL_NAMES
+MODEL_NAMES=(['03']='AXE-FX II' ['06']='AXE-FX II XL' ['07']='AXE-FX II XL+')
+
+function check_model () {
+	for m in ${MODELS[@]}; do
+		[ $m = "$MODEL" ] && return
+	done
+	fail unknown model \($MODEL\)
+}
+
+##
+# Conversions
+##
+
+declare -a TOHEX
+TOHEX=('0' '1' '2' '3' '4' '5' '6' '7' '8' '9' 'A' 'B' 'C' 'D' 'E' 'F')
+
+declare -A FROMHEX
+FROMHEX=(['0']=0  ['1']=1  ['2']=2  ['3']=3  ['4']=4  ['5']=5  ['6']=6  ['7']=7
+	 ['8']=8  ['9']=9  ['A']=10 ['B']=11 ['C']=12 ['D']=13 ['E']=14 ['F']=15
+                           ['a']=10 ['b']=11 ['c']=12 ['d']=13 ['e']=14 ['f']=15)
+
+# Decode two hexadecimal nibbles to an integer value.
+function decode () {
+	echo $(( (${FROMHEX[${1:0:1}]}<<4)+${FROMHEX[${1:1:1}]} ))
+}
+
+# Encode an integer value to two hexadecimal nibbles.
+function encode () {
+	echo ${TOHEX[$(( $1>>4&0xf ))]}${TOHEX[$(( $1&0xf ))]}
+}
+
+declare -a BANK_NAMES
+BANK_NAMES=('A' 'B' 'C' 'D' 'E' 'F' 'G' 'H')
+
+declare -A BANK_NUMBERS
+BANK_NUMBERS=(['A']=0 ['B']=1 ['C']=2 ['D']=3 ['E']=4 ['F']=5 ['G']=6 ['H']=7
+              ['a']=0 ['b']=1 ['c']=2 ['d']=3 ['e']=4 ['f']=5 ['g']=6 ['h']=7)
+
+# Convert zero-origin bank number to bank name.
+function bank_number_to_name () {
+	echo ${BANK_NAME[$1]}
+}
+
+# Convert bank name to zero-origin bank number.
+function bank_name_to_number () {
+	echo ${BANK_NUMBERS[$1]}
+}
+
+# Convert integer lists and ranges to an integer set.
+function make_integer_set () {
+	local l=`echo $1|tr , ' '`
+	local r=
+	local m
+	for m in $l; do
+		case $m in
+		  *-*)
+			local s=${m%-*}; local f=${m#*-}
+			[ $s -lt $f ] || fail invalid range
+			local i
+			for (( i=s; i<=f; ++i )); do
+				r+="$i "
+			done
+			;;
+		  -*|*-) fail invalid range ;;
+		  *) r+="$m " ;;
+		esac
+	done
+	echo $r
+}
+
+# Convert bank-name lists and ranges to an integer set.
+function make_bank_set () {
+	local l=`echo $1|tr , ' '`
+	local r=
+	local m
+	for m in $l; do
+		case $m in
+		  *-*)
+			local s=`bank_name_to_number ${m%-*}`
+			local f=`bank_name_to_number ${m#*-}`
+			[ $s -lt $f ] || fail invalid range
+			local i
+			for (( i=s; i<=f; ++i )); do
+				r+="$i "
+			done
+			;;
+		  -*|*-) fail invalid range ;;
+		  *) r+="`bank_name_to_number $m` " ;;
+		esac
+	done
+	echo $r
+}
+
+##
+# MIDI interface
+##
+
+# Construct a control change message with parameters: channel, number, value.
+function make_cc () {
+	local chan=$(( $1-1 ))
+	local byte1=`encode $(( (0xb<<4)+($chan&0xf) ))`
+	local byte2=`encode $(( $2&0x7f ))`
+	local byte3=`encode $(( $3&0x7f ))`
+	echo $byte1$byte2$byte3
+}
+
+# Construct a program change message with parameters: channel, program.
+function make_pc () {
+	local chan=$(( $1-1 ))
+	local byte1=`encode $(( (0xc<<4)+($chan&0xf) ))`
+	local byte2=`encode $(( $2&0x7f ))`
+	echo $byte1$byte2
+}
+
+# Compute a checksum from the given hex data.
+function checksum () {
+	local sum=0
+	local len=${#1}
+	local i
+	for (( i=0; i<len; i+=2 )); do
+		local byte=`decode ${1:$i:2}`
+		sum=$(( sum^byte ))
+	done
+	sum=$(( sum&0x7f ))
+	encode sum
+}
+
+CONNECTION_DISPLAYED=false
+function display_connection () {
+	$CONNECTION_DISPLAYED || {
+		echo PORT $PORT CHANNEL $CHANNEL MODEL ${MODEL_NAMES[$MODEL]}
+		CONNECTION_DISPLAYED=true
+	}
+}
+
+# Confirm that the MIDI port has been specified.
+function confirm_port () {
+	[ -n "$PORT" ] || fail MIDI port not specified
+}
+
+# Send a MIDI command.
+function send_midi () {
+	amidi -p $PORT -S $1
+}
+
+# Validate the checkum in a sysex message.
+function validate () {
+	local check=${1: -4:2}
+	local sum=`checksum ${1:0:-4}`
+	[ "$sum" = "$check" ]
+}
+
+# Send a sysex command and receive the response.
+function send_cmd_recv_midi () {
+	local resp=`amidi -p $PORT -S $1 -t 1 -d|tr -d ' '`
+	[ $? -eq 0 ] || fail MIDI send/receive error
+	validate $resp || fail checksum error
+	echo $resp
+}
+
+# Send a sysex command and save the response to a named file.
+function send_cmd_recv_midi_to_file () {
+	local cmd=$1
+	shift
+	amidi -p $PORT -S $cmd -t 3 -r "$@"
+}
+
+# Remove header, checksum and trailer from response, leaving payload.
+function response_payload () {
+	local head=$HEADER_NIBBLES+CMD_NIBBLES
+	local tail=$(( -(SUM_NIBBLES+TRAILER_NIBBLES) ))
+	echo ${1:$head:$tail}
+}
+
+# Unpack 14-bit integer.
+function unpack14 () {
+	echo $(( (0x${1:0:2}<<7)+0x${1:2:2} ))
+}
+
+# Unpack zero-terminated string.
+function unpackzs () {
+	local len=$(( ${#1}-2 ))
+	local i
+	for (( i = 0; i<len; i+=2 )); do
+		echo -en "\x${1:$i:2}"
+	done
+	echo
+}
+
+# Extract trimmed name from response.
+function patch_name () {
+	local data=$(response_payload $1)
+	local len=$(( ${#data}-2 ))
+	local i
+	for (( i = len-2; i>=0; i-=2 )); do
+		local char=${data:$i:2}
+		[ $char != "20" -a $char != "00" ] && break
+	done
+	echo $(unpackzs ${data:0:$i+2}00)
+}
+
+# Extract 14-bit number from response.
+function patch_number () {
+	local data=$(response_payload $1)
+	unpack14 $data
+}
+
+##
+# AFX MIDI command constructors
+##
+
+# Construct a sysex command to get the model number.
+function get_model () {
+	local body=$PREFIX$INQUIRY_MODEL$CMD_INQUIRY
+	echo "$body`checksum $body`$TRAILER"
+}
+
+# Construct a sysex command to get the number of the current preset.
+function get_preset_number () {
+	local body=$HEADER$CMD_GET_PRESET_NUMBER
+	echo "$body`checksum $body`$TRAILER"
+}
+
+# Construct a sysex command to get the name of the current preset.
+function get_preset_name () {
+	local body=$HEADER$CMD_GET_PRESET_NAME
+	echo "$body`checksum $body`$TRAILER"
+}
+
+# Construct a sysex command to get the current edit buffer.
+function get_edit_buffer () {
+	local body=$HEADER$CMD_GET_EDIT_BUFFER
+	echo "$body`checksum $body`$TRAILER"
+}
+
+# Construct a sysex command to get the system data.
+function get_system_data () {
+	local body=$HEADER${CMD_GET_SYSTEM_DATA[$MODEL]}
+	echo "$body`checksum $body`$TRAILER"
+}
+
+# Construct a sysex command to get a numbered preset bank.
+function get_preset_bank () {
+	local body=$HEADER$CMD_GET_PRESET_BANK`encode $1`
+	echo "$body`checksum $body`$TRAILER"
+}
+
+# Construct a sysex command to get a user cab.
+function get_user_cab () {
+	case $MODEL in
+	  03) local cabnum=`encode $(( $1&0x7f ))` ;;
+	  06|07) local cabnum=`encode $(( $1/128 ))``encode $(( $1%128 ))` ;;
+	esac
+	local body=$HEADER$CMD_GET_USER_CAB$cabnum
+	echo "$body`checksum $body`$TRAILER"
+}
+
+##
+# AFX high-level interface
+##
+
+# Ask the AFX for its model number; build the header for other sysex commands.
+function init_for_afx_model () {
+	confirm_port
+	local resp=$(send_cmd_recv_midi `get_model`)
+	[ -n "$resp" ] || fail no response from MIDI port
+	MODEL=${resp:8:2}
+	check_model
+	HEADER=$PREFIX$MODEL
+}
+
+# Return the number of the selected preset.
+function query_preset_number () {
+	echo $(patch_number $(send_cmd_recv_midi $(get_preset_number)))
+}
+
+# Construct a filename for the current preset, so long as the preset is named.
+function query_patch_filename () {
+	local number=$(query_preset_number)
+	local name=$(patch_name $(send_cmd_recv_midi $(get_preset_name)))
+	if [ -n "$name" ]; then
+		echo "$STAMP$number-$name.syx"
+	else
+		echo 1>&2 Patch $number has no name - skipping
+		echo
+	fi
+}
+
+# Select a preset.
+function select_preset () {
+	local patch=$(( $1 - $DISPLAY_OFFSET ))
+	local bank=$(( $patch / 128 ))
+	local preset=$(( $patch % 128 ))
+	send_midi `make_cc $CHANNEL 0 $bank`
+	send_midi `make_pc $CHANNEL $preset`
+}
+
+# Download a numbered preset bank to a file.
+function download_preset_bank () {
+	display_connection
+	local bankname=`bank_number_to_name $1`
+	local filename="${STAMP}Bank$bankname.syx"
+	echo -n "$filename"
+	send_cmd_recv_midi_to_file `get_preset_bank $1` "$filename"
+}
+
+# Download a numbered user cab (IR) to a file.
+function download_user_cab () {
+	display_connection
+	local filename="${STAMP}Cab$1.syx"
+	echo -n "$filename"
+	send_cmd_recv_midi_to_file `get_user_cab $1` "$filename"
+}
+
+# Download the current preset to a file having the preset's number and name.
+function download_selected_preset () {
+	confirm_port
+	display_connection
+        local filename=`query_patch_filename`
+	[ -n "$filename" ] || return
+	echo -n "$filename"
+	send_cmd_recv_midi_to_file `get_edit_buffer` "$filename"
+}
+
+# Download the system globals to a file.
+function download_system_data () {
+	confirm_port
+	display_connection
+	local filename="${STAMP}System.syx"
+	echo -n "$filename"
+	send_cmd_recv_midi_to_file `get_system_data` "$filename"
+}
+
+##
+# High-level download interface
+##
+
+# Download one or more preset banks.
+function download_preset_banks () {
+	confirm_port
+	local b
+	for b in `make_bank_set $@`; do
+		download_preset_bank $b
+	done
+}
+
+# Download one or more presets.
+function download_preset_set () {
+	local orig=$(query_preset_number)
+	for p in `make_integer_set $@`; do
+		select_preset $p
+		download_selected_preset
+	done
+	select_preset $orig
+}
+
+# Download one or more user cabs.
+function download_user_cab_set () {
+	confirm_port
+	local c
+	for c in `make_integer_set $@`; do
+		download_user_cab $c
+	done
+}
+
+##
+# Option initialization
+##
+
+while getopts ":c:1tb:Pp:si:u:h" OPTION; do
+	case $OPTION in
+	  c) CHANNEL=$OPTARG ;;
+	  1) DISPLAY_OFFSET=1 ;;
+	  t) STAMP="`date +'%F@%R:%S'` " ;;
+	  b|P|p|s|i|u) ;;  # actions handled below
+	  h) help ;;
+	  *) fail invalid option -$OPTARG ;;
+	esac
+done
+init_for_afx_model
+
+##
+# Command dispatcher
+##
+
+OPTIND=1
+while getopts ":c:1tb:Pp:si:u:h" OPTION; do
+	case $OPTION in
+	  c|1|t) ;;        # settings handled above
+	  b) download_preset_banks $OPTARG ;;
+	  P) download_selected_preset ;;
+	  p) download_preset_set $OPTARG ;;
+	  s) download_system_data ;;
+	  i) download_user_cab_set $OPTARG ;;
+	  u) fail file upload not yet implemented ;;
+	  *) fail invalid option -$OPTARG ;;
+	esac
+done
+shift $(( $OPTIND - 1 ))
+[ -z "$@" ] || fail unprocessed args: $@
