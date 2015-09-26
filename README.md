@@ -48,6 +48,12 @@ or gain. Note that `afx2-tool` will, when it's finished downloading all
 patches in the specified range, select the patch that was active prior
 to the downloads.
 
+If the lowest-numbered patch on your Axe-FX is patch 001, add the `-1`
+option to your `afx2-tool` command in order to make patch numbers
+on the command line match the patch numbers on your Axe-FX. If the
+lowest-numbered patch on your Axe-FX if patch 000, don't use the `-1`
+option.
+
 Current Implementation Status
 -----------------------------
 
