@@ -1,5 +1,7 @@
 #! /bin/bash
 
+#: backup and restore Axe-FX II data
+
 # afx2-tool
 # Copyright 2015 David B. Lamkins <david@lamkins.net>
 #
