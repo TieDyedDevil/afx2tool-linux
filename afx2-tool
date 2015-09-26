@@ -137,7 +137,7 @@ BANK_NUMBERS=(['A']=0 ['B']=1 ['C']=2 ['D']=3 ['E']=4 ['F']=5 ['G']=6 ['H']=7
 
 # Convert zero-origin bank number to bank name.
 function bank_number_to_name () {
-	echo ${BANK_NAME[$1]}
+	echo ${BANK_NAMES[$1]}
 }
 
 # Convert bank name to zero-origin bank number.
