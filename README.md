@@ -32,10 +32,29 @@ In the first case, just copy or move the file.
 
 In the second case, it's easiest to use the `install` command:
 
+```
 $ sudo install -m 755 <path-to>/afx2-tool /usr/local/bin
+```
 
 You may also find it useful to stash this (`README.md`) file somewhere
 as a convenient reference.
+
+Prefix Export vs. Download
+--------------------------
+
+The `afx2-tool` has two ways to save an Axe-FX preset to a file: export
+and download.
+
+The export operation saves the contents of the Axe-FX edit buffer. The
+preset number and name are used to create the name of the file. Any
+unsaved modifications in the edit buffer will be saved to the file.
+
+To export a preset not already in the edit buffer, `afx2-tool` first
+selects the preset.
+
+The download operation saves the contents of the Axe-FX preset
+memory. Only the preset number is used to create the name of the file. The
+download operation never selects the preset to be downloaded.
 
 Operation
 ---------
@@ -54,13 +73,13 @@ Axe-FX) is the only MIDI-capable device connected to your computer's
 USB port before running `afx2-tool`. It is OK to have other USB devices
 connected so long as they don't have a MIDI-over-USB interface.
 
-Individual patches are transferred from the Axe-FX by first selecting
-the patch in the Axe-FX. The `afx2-tool` automates this process via the
-`-p <range>` option. It's a good idea to turn off or mute all amplifiers
-and monitors connected to your Axe-FX before invoking `afx2-tool` with
-the `-p <range>` option. This precaution can save you from being startled
+Individual patches are exported from the Axe-FX by first selecting the
+patch in the Axe-FX. The `afx2-tool` automates this process via the `-e
+<range>` option. It's a good idea to turn off or mute all amplifiers and
+monitors connected to your Axe-FX before invoking `afx2-tool` with the
+`-e <range>` option. This precaution can save you from being startled
 when `afx2-tool` switches your Axe-FX to a patch having a lot of volume
-or gain. Note that `afx2-tool` will, when it's finished downloading all
+or gain. Note that `afx2-tool` will, when it has finished exporting all
 patches in the specified range, select the patch that was active prior
 to the downloads.
 
@@ -73,20 +92,22 @@ option.
 Example Commands
 ----------------
 
-$ afx2-tool -P
-\# Download the currently-selected preset.
+```
+$ afx2-tool -E
+# Export the currently-selected preset.
 
 $ afx2-tool -p 3-14,21 -s -i 9,12
-\# Download patches 3 through 14 and 21, the system data and user
-   cabs (IRs) 9 and 12.
+# Download patches 3 through 14 and 21, the system data and user
+#  cabs (IRs) 9 and 12.
 
 $ afx2-tool -b A-C
-\# Download patch banks A through C.
+# Download patch banks A through C.
+```
 
 Current Implementation Status
 -----------------------------
 
-September 25, 2015: version 0.9.0
+September 26, 2015: version 0.9.0
 
 Although `afx2-tool` is designed to support all Axe-FX II models, it
 has only been tested (as I write this note) on my own Axe-FX II XL+.
@@ -94,14 +115,9 @@ has only been tested (as I write this note) on my own Axe-FX II XL+.
 Likewise, although `afx2-tool` is written using common Linux tools,
 I have only tested it on my own Fedora 22 systems.
 
-I am reasonably convinced that the backups of individual presets,
-preset banks and system data are viable, based upon the size and content
-of the downloaded files. However, I have not implemented the upload
-functionality; therefore, I will not assert that the backups are usable.
-
 I don't yet have all of the information I need regarding the user cab
-commands. It's quite likely that the downloaded cab won't be the one
-you specified on the command line. This will be corrected for the 1.0.0
+commands. It's possible that the downloaded cab won't be the one you
+specified on the command line. This will be resolved for the 1.0.0
 release.
 
 Support
