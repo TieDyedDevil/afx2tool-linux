@@ -318,6 +318,11 @@ function unpack14 () {
 	echo $(( (0x${1:0:2}<<7)+0x${1:2:2} ))
 }
 
+# Pack 14-bit integer.
+function pack14 () {
+	echo `encode $(( $1/128 ))``encode $(( $1%128 ))`
+}
+
 # Unpack zero-terminated string.
 function unpackzs () {
 	local len=$(( ${#1}-2 ))
@@ -376,7 +381,7 @@ function get_edit_buffer () {
 
 # Construct a sysex command to get a numbered preset.
 function get_preset () {
-	local presetnum=`encode $(( $1/128 ))``encode $(( $1%128 ))`
+	local presetnum=`pack14 $1`
 	local body=$HEADER$CMD_GET_PRESET$presetnum
 	echo "$body`checksum $body`$TRAILER"
 }
@@ -397,7 +402,7 @@ function get_preset_bank () {
 function get_user_cab () {
 	case $MODEL in
 	  03) local cabnum=`encode $(( $1&0x7f ))` ;;
-	  06|07) local cabnum=`encode $(( $1/128 ))``encode $(( $1%128 ))` ;;
+	  06|07) local cabnum=`pack14 $1` ;;
 	esac
 	local body=$HEADER$CMD_GET_USER_CAB$cabnum
 	echo "$body`checksum $body`$TRAILER"
