@@ -2,7 +2,7 @@ AFX II Tool
 ===========
 
 ```
-version: 0.9.0
+version: 0.9.1
 Sep 26, 2015
 ```
 
@@ -166,8 +166,6 @@ $ afx2-tool -u Preset512.syx -u Preset513.syx -u Preset514.syx -u System.syx
 
 Current Implementation Status
 -----------------------------
-
-September 26, 2015: version 0.9.0
 
 Although `afx2-tool` is designed to support all Axe-FX II models, it
 has only been tested (as I write this note) on my own Axe-FX II XL+.

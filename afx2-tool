@@ -7,7 +7,7 @@
 #
 # This work is shared under the terms of the MIT License.
 
-VERSION=0.9.0
+VERSION=0.9.1
 
 ##
 # Help and preflight
@@ -77,7 +77,6 @@ function prompt () {
 ##
 
 CHANNEL=1
-PORT=$( amidi -l|grep 'AXE-FX II MIDI'|awk '{ print $2 }' )
 DISPLAY_OFFSET=0
 STAMP=
 
@@ -269,8 +268,11 @@ function display_connection () {
 	}
 }
 
-# Confirm that the MIDI port has been specified.
-function confirm_port () {
+# Detect the MIDI-over-USB port connected to the AXE-FX II.
+function detect_port () {
+	local count=$( amidi -l 2>/dev/null|grep 'AXE-FX II MIDI'|wc -l )
+	[ $count -gt 1 ] && fail multiple AXE-FX II MIDI ports detected
+	PORT=$( amidi -l 2>/dev/null|grep 'AXE-FX II MIDI'|awk '{ print $2 }' )
 	[ -n "$PORT" ] || fail MIDI port not detected
 }
 
@@ -421,7 +423,6 @@ function put_edit_buffer () {
 
 # Ask the AFX for its model number; build the header for other sysex commands.
 function init_for_afx_model () {
-	confirm_port
 	flush_input
 	local resp=$(send_cmd_recv_midi `get_model`)
 	[ -n "$resp" ] || fail no response from MIDI port
@@ -480,7 +481,6 @@ function download_user_cab () {
 
 # Download a numbered preset to a file.
 function download_preset () {
-	confirm_port
 	display_connection
 	local filename="${STAMP}Preset$1.syx"
 	echo -n "$filename"
@@ -489,7 +489,6 @@ function download_preset () {
 
 # Download the system globals to a file.
 function download_system_data () {
-	confirm_port
 	display_connection
 	local filename="${STAMP}System.syx"
 	echo -n "$filename"
@@ -498,7 +497,6 @@ function download_system_data () {
 
 # Export the current preset to a file having the preset's number and name.
 function export_selected_preset () {
-	confirm_port
 	display_connection
 	local filename=`query_patch_filename`
 	[ -n "$filename" ] || return
@@ -512,7 +510,6 @@ function export_selected_preset () {
 
 # Download one or more preset banks.
 function download_preset_banks () {
-	confirm_port
 	local b
 	for b in `make_bank_set $@`; do
 		download_preset_bank $b
@@ -529,7 +526,6 @@ function download_preset_set () {
 
 # Download one or more user cabs.
 function download_user_cab_set () {
-	confirm_port
 	local c
 	for c in `make_integer_set $@`; do
 		download_user_cab $c
@@ -560,7 +556,6 @@ function parse_preset_number () {
 
 # Upload an Axe-FX II file.
 function upload_file () {
-	confirm_port
 	check_compatible_file "$1"
 	echo $(basename "$1")
 	amidi -p $PORT -s "$1"
@@ -593,6 +588,7 @@ while getopts ":c:1tb:Ee:p:si:u:h" OPTION; do
 	  *) fail invalid option -$OPTARG ;;
 	esac
 done
+detect_port
 init_for_afx_model
 
 ##
