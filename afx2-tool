@@ -7,7 +7,7 @@
 #
 # This work is shared under the terms of the MIT License.
 
-VERSION=0.9.1
+VERSION=0.9.2
 
 ##
 # Help and preflight
@@ -97,6 +97,7 @@ CMD_GET_PRESET_NAME=0F
 CMD_GET_EDIT_BUFFER=037F00
 CMD_GET_PRESET=03       # followed by 0-origin preset number (2 bytes)
 CMD_PUT_EDIT_BUFFER=1D  # followed by 0-origin preset number (2 bytes)
+CMD_RECALL=3C           # followed by 0-origin preset number (2 bytes)
 declare -A CMD_GET_SYSTEM_DATA
 CMD_GET_SYSTEM_DATA=(['03']=1C03, ['06']=43, ['07']=43)
 CMD_GET_PRESET_BANK=1C  # followed by 0-origin bank number
@@ -413,6 +414,12 @@ function put_edit_buffer () {
 	echo "$body`checksum $body`$TRAILER"
 }
 
+# Construct a sysex command to recall preset memory into the edit buffer.
+function recall () {
+	local body=$HEADER$CMD_RECALL`pack14 $1`
+	echo "$body`checksum $body`$TRAILER"
+}
+
 ##
 # AFX high-level interface
 ##
@@ -495,6 +502,11 @@ function export_selected_preset () {
 	send_cmd_recv_midi_to_file `get_edit_buffer` "$filename"
 }
 
+# Recall preset memory into the edit buffer.
+function recall_preset () {
+	send_midi `recall $1`
+}
+
 ##
 # High-level download interface
 ##
@@ -558,8 +570,7 @@ function upload_file () {
 		else
 			local orig=$(query_preset_number)
 			save_edit_buffer_to_preset $dest
-			select_preset $(( orig^1 ))
-			select_preset $orig
+			recall_preset $orig
 			echo "Saved to $dest"
 		fi
 	fi

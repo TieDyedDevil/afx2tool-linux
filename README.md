@@ -2,8 +2,8 @@ AFX II Tool
 ===========
 
 ```
-version: 0.9.1
-Sep 26, 2015
+version: 0.9.2
+Sep 27, 2015
 ```
 
 The `afx2-tool` works with Fractal Audio Systems' Axe-FX II guitar
