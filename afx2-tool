@@ -97,6 +97,7 @@ CMD_GET_PRESET_NUMBER=14
 CMD_GET_PRESET_NAME=0F
 CMD_GET_EDIT_BUFFER=037F00
 CMD_GET_PRESET=03       # followed by 0-origin preset number (2 bytes)
+CMD_PUT_EDIT_BUFFER=1D  # followed by 0-origin preset number (2 bytes)
 declare -A CMD_GET_SYSTEM_DATA
 CMD_GET_SYSTEM_DATA=(['03']=1C03, ['06']=43, ['07']=43)
 CMD_GET_PRESET_BANK=1C  # followed by 0-origin bank number
@@ -270,7 +271,7 @@ function display_connection () {
 
 # Confirm that the MIDI port has been specified.
 function confirm_port () {
-	[ -n "$PORT" ] || fail MIDI port not specified
+	[ -n "$PORT" ] || fail MIDI port not detected
 }
 
 # Send a MIDI command.
@@ -408,6 +409,12 @@ function get_user_cab () {
 	echo "$body`checksum $body`$TRAILER"
 }
 
+# Construct a sysex command to put the edit buffer into preset memory.
+function put_edit_buffer () {
+	local body=$HEADER$CMD_PUT_EDIT_BUFFER`pack14 $1`
+	echo "$body`checksum $body`$TRAILER"
+}
+
 ##
 # AFX high-level interface
 ##
@@ -447,6 +454,11 @@ function select_preset () {
 	local preset=$(( $patch % 128 ))
 	send_midi `make_cc $CHANNEL 0 $bank`
 	send_midi `make_pc $CHANNEL $preset`
+}
+
+# Save the edit buffer to preset storage.
+function save_edit_buffer_to_preset () {
+	send_midi `put_edit_buffer $1`
 }
 
 # Download a numbered preset bank to a file.
@@ -540,6 +552,12 @@ function export_preset_set () {
 # Upload interface
 ##
 
+# Parse preset number from file name.
+function parse_preset_number () {
+	[[ "$1" =~ ^(.* )?Preset([[:digit:]]+)\.syx$ ]] && \
+		echo ${BASH_REMATCH[2]}
+}
+
 # Upload an Axe-FX II file.
 function upload_file () {
 	confirm_port
@@ -547,7 +565,15 @@ function upload_file () {
 	echo $(basename "$1")
 	amidi -p $PORT -s "$1"
 	echo "Uploaded"
-	is_preset_file "$1" && prompt "Save preset from front panel"
+	if is_preset_file "$1"; then
+		local dest=`parse_preset_number "$1"`
+		if [ -z "$dest" ]; then
+			prompt "Save preset from front panel"
+		else
+			save_edit_buffer_to_preset $dest
+			echo "Saved to $dest"
+		fi
+	fi
 }
 
 ##
