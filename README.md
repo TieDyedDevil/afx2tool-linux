@@ -59,7 +59,32 @@ The download operation saves the contents of the Axe-FX preset
 memory. Only the preset number is used to create the name of the file. The
 download operation never selects the preset to be downloaded.
 
-All presets, whether named or not, are saved by the download operation.
+All presets, whether named or not, are saved by the download (not export)
+operation.
+
+The `afx2-tool` behavior upon uploading a preset (via the `-u` option)
+depends upon whether the preset was downloaded (`-p`) or exported (`-E`
+or `-e`). A downloaded preset is automatically saved to the preset
+memory denoted by the numeric portion of the filename. You can change
+the location to which `afx2-tool` stores a downloaded preset simply
+by editing the numeric portion of the preset file's name. Be careful
+to specify the intended preset number; `afx2-tool` restores downloaded
+presets without confirmation.
+
+An exported preset is stored only in the Axe-FX edit buffer until you
+manually save the preset using the Axe-FX's front-panel STORE button;
+this gives you the opportunity to audition the patch and then save it
+to a location of your choosing.
+
+You should, as a rule of thumb, download presets as part of your backup
+regime and export presets to share with others or to store in a library.
+
+Downloaded and exported presets contain exactly the same data; only the
+filename is different. The name of a download preset *must* end with
+exactly "Preset<digits>.syx". Additional words at the beginning of the
+filename (e.g. a timestamp) must be set off by at least one space. Any
+preset file not adhering to these naming conventions will be treated as
+a preset export file.
 
 Timestamps and Overwrites
 -------------------------
@@ -129,6 +154,9 @@ $ afx2-tool -p 3-14,21 -s -i 9,12
 
 # Download patch banks A through C.
 $ afx2-tool -b A-C
+
+# Upload three saved presets and saved system data.
+$ afx2-tool -u Preset512.syx -u Preset513.syx -u Preset514.syx -u System.syx
 ```
 
 Current Implementation Status
@@ -141,11 +169,6 @@ has only been tested (as I write this note) on my own Axe-FX II XL+.
 
 Likewise, although `afx2-tool` is written using common Linux tools,
 I have only tested it on my own Fedora 22 systems.
-
-I don't yet have all of the information I need regarding the user cab
-commands. It's possible that the downloaded cab won't be the one you
-specified on the command line. This will be resolved for the 1.0.0
-release.
 
 Support
 -------
