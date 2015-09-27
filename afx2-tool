@@ -460,7 +460,6 @@ function save_edit_buffer_to_preset () {
 
 # Download a numbered preset bank to a file.
 function download_preset_bank () {
-	display_connection
 	local bankname=`bank_number_to_name $1`
 	local filename="${STAMP}Bank$bankname.syx"
 	echo -n "$filename"
@@ -469,7 +468,6 @@ function download_preset_bank () {
 
 # Download a numbered user cab (IR) to a file.
 function download_user_cab () {
-	display_connection
 	local filename="${STAMP}Cab$1.syx"
 	echo -n "$filename"
 	send_cmd_recv_midi_to_file `get_user_cab $1` "$filename"
@@ -477,7 +475,6 @@ function download_user_cab () {
 
 # Download a numbered preset to a file.
 function download_preset () {
-	display_connection
 	local filename="${STAMP}Preset$1.syx"
 	echo -n "$filename"
 	send_cmd_recv_midi_to_file `get_preset $1` "$filename"
@@ -485,7 +482,6 @@ function download_preset () {
 
 # Download the system globals to a file.
 function download_system_data () {
-	display_connection
 	local filename="${STAMP}System.syx"
 	echo -n "$filename"
 	send_cmd_recv_midi_to_file `get_system_data` "$filename"
@@ -493,7 +489,6 @@ function download_system_data () {
 
 # Export the current preset to a file having the preset's number and name.
 function export_selected_preset () {
-	display_connection
 	local filename=`query_patch_filename`
 	[ -n "$filename" ] || return
 	echo -n "$filename"
