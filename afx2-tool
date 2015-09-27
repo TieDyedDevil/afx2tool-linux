@@ -572,7 +572,7 @@ function upload_file () {
 		else
 			local orig=$(query_preset_number)
 			save_edit_buffer_to_preset $dest
-			select_preset 0
+			select_preset $(( orig^1 ))
 			select_preset $orig
 			echo "Saved to $dest"
 		fi
