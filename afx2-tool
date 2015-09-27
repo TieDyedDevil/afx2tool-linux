@@ -57,14 +57,15 @@ function usage () {
 	exit 1
 }
 
+[ $# -eq 0 ] && usage
+
 function fail () {
 	echo >&2 $PGM: $@
 	exit 1
 }
 
 which amidi > /dev/null || fail amidi not on \$PATH
-
-[ $# -eq 0 ] && usage
+[ ${BASH_VERSINFO[0]} -ge 4 ] || fail bash 4 or later required
 
 function prompt () {
 	local reply
