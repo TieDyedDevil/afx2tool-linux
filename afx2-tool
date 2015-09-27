@@ -260,12 +260,8 @@ function checksum () {
 	encode sum
 }
 
-CONNECTION_DISPLAYED=false
 function display_connection () {
-	$CONNECTION_DISPLAYED || {
-		echo PORT $PORT CHANNEL $CHANNEL MODEL ${MODEL_NAMES[$MODEL]}
-		CONNECTION_DISPLAYED=true
-	}
+	echo PORT $PORT CHANNEL $CHANNEL MODEL ${MODEL_NAMES[$MODEL]}
 }
 
 # Detect the MIDI-over-USB port connected to the AXE-FX II.
@@ -590,6 +586,7 @@ while getopts ":c:1tb:Ee:p:si:u:h" OPTION; do
 done
 detect_port
 init_for_afx_model
+display_connection
 
 ##
 # Command dispatcher
