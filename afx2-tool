@@ -217,8 +217,7 @@ function check_compatible_file () {
 	local prefix=${ident:0:$PREFIX_NIBBLES}
 	local model=${ident:$PREFIX_NIBBLES:$MODEL_NIBBLES}
 	[ $prefix = $PREFIX ] || fail not an Axe-FX file
-	[ $model = '03' ] && return
-	[ $MODEL = '03' ] && fail file not compatible with model
+	[ $model -eq $MODEL ] || fail file not compatible with model
 }
 
 # Return true if the file is a preset file that will load into the edit buffer.

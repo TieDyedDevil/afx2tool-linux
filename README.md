@@ -110,6 +110,14 @@ A preset, for example, depends upon system settings and possibly a user
 cab. It is up to you to download all necessary files; the `afx2-tool` does
 not keep track of dependencies.
 
+File Compatibility
+------------------
+
+The `axf2-tool` will only upload files to the same model of Axe-FX II on
+which the file was created. (Axe-FX II Mark 1 and Mark 2 are compatible
+with each other.) Use other tools to convert files for use on a different
+model.
+
 Operation
 ---------
 
