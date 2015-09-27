@@ -1,6 +1,11 @@
 AFX II Tool
 ===========
 
+```
+version: 0.9.0
+Sep 26, 2015
+```
+
 The `afx2-tool` works with Fractal Audio Systems' Axe-FX II guitar
 processors. The Mark 1, Mark 2, FX and FX+ models are all supported. You
 can use the `afx2-tool` to backup and restore individual patches, patch
