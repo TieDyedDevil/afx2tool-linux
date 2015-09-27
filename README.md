@@ -164,6 +164,28 @@ $ afx2-tool -b A-C
 $ afx2-tool -u Preset512.syx -u Preset513.syx -u Preset514.syx -u System.syx
 ```
 
+Firmware Upload
+---------------
+
+While the `afx2-tool` will not upload a new firmware file to your Axe-FX II,
+it is very easy to do so using `amdi`:
+
+1. Connect your computer to the Axe-FX II via a USB cable. Note that you must
+   have already installed the Axe-FX II driver setup on your computer.
+
+2. Run this command on your computer: `$ amidi -l` . Note the port name
+   reported for your Axe-FX II.
+
+3. Press the UTILITY button on your Axe-FX and navigate to the FIRMWARE page.
+
+4. Press the ENTER button to ready the Axe-FX to receive new firmware.
+
+5. Run this command on your computer: `$ amidi -p <port name> -s <filename>` ,
+   where `<filename>` is the name of the Axe-FX II firmware file; this will
+   have a `.syx` extension.
+
+6. Watch the screen on your Axe-FX II; follow its instructions.
+
 Current Implementation Status
 -----------------------------
 
