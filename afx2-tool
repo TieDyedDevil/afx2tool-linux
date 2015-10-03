@@ -7,7 +7,9 @@
 #
 # This work is shared under the terms of the MIT License.
 
-VERSION=0.9.2
+[ "$AFX2TOOL_TRACE" = "1" ] && set -x
+
+VERSION=0.9.3
 
 ##
 # Help and preflight
@@ -278,6 +280,12 @@ function send_midi () {
 	amidi -p $PORT -S $1
 }
 
+# Check for a sequence of hex dgits.
+function check_hex () {
+	local unexpected="`echo \"$@\"|tr -d '0123456789abcdefABCDEF '`"
+	[ -z "$unexpected" ]
+}
+
 # Validate the checkum in a sysex message.
 function validate () {
 	local check=${1: -4:$SUM_NIBBLES}
@@ -293,8 +301,9 @@ function flush_input () {
 # Send a sysex command and receive the response.
 function send_cmd_recv_midi () {
 	flush_input
-	local resp=`amidi -p $PORT -S $1 -t 1 -d|tr -d ' '`
+	local resp=`amidi -p $PORT -S $1 -t 2 -d|tr -d ' '`
 	[ $? -eq 0 ] || fail MIDI send/receive error
+	check_hex "$resp" || fail unexpected "$resp"
 	validate $resp || fail checksum error
 	echo $resp
 }
@@ -303,7 +312,8 @@ function send_cmd_recv_midi () {
 function send_cmd_recv_midi_to_file () {
 	local cmd=$1
 	shift
-	amidi -p $PORT -S $cmd -t 3 -r "$@"
+	flush_input
+	amidi -p $PORT -S $cmd -t 5 -r "$@"
 }
 
 # Remove header, checksum and trailer from response, leaving payload.
