@@ -9,7 +9,7 @@
 
 [ "$AFX2TOOL_TRACE" = "1" ] && set -x
 
-VERSION=0.9.3
+VERSION=0.9.4
 
 ##
 # Help and preflight
@@ -102,7 +102,7 @@ CMD_GET_PRESET=03       # followed by 0-origin preset number (2 bytes)
 CMD_PUT_EDIT_BUFFER=1D  # followed by 0-origin preset number (2 bytes)
 CMD_RECALL=3C           # followed by 0-origin preset number (2 bytes)
 declare -A CMD_GET_SYSTEM_DATA
-CMD_GET_SYSTEM_DATA=(['03']=1C03, ['06']=43, ['07']=43)
+CMD_GET_SYSTEM_DATA=(['03']=1C03 ['06']=43 ['07']=43)
 CMD_GET_PRESET_BANK=1C  # followed by 0-origin bank number
 CMD_GET_USER_CAB=19     # followed by 0-origin cab number (2 bytes XL/XL+)
 INQUIRY_MODEL=7F
