@@ -176,7 +176,7 @@ Firmware Upload
 ---------------
 
 While the `afx2-tool` will not upload a new firmware file to your Axe-FX II,
-it is very easy to do so using `amdi`:
+it is very easy to do so using `amidi`:
 
 1. Connect your computer to the Axe-FX II via a USB cable. Note that you must
    have already installed the Axe-FX II driver setup on your computer.
