@@ -9,7 +9,7 @@
 
 [ "$AFX2TOOL_TRACE" = "1" ] && set -x
 
-VERSION=0.9.4
+VERSION=0.9.5
 
 ##
 # Help and preflight
@@ -618,7 +618,7 @@ while getopts ":c:1tb:Ee:p:si:u:h" OPTION; do
 	  b) download_preset_banks $OPTARG ;;
 	  s) download_system_data ;;
 	  i) download_user_cab_set $OPTARG ;;
-	  u) upload_file $OPTARG ;;
+	  u) upload_file "$OPTARG" ;;
 	  *) fail invalid option -$OPTARG ;;
 	esac
 done
