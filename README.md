@@ -2,8 +2,8 @@ AFX II Tool
 ===========
 
 ```
-version: 0.9.3
-Oct 3, 2015
+version: 0.9.5
+Oct 8, 2015
 ```
 
 The `afx2-tool` works with Fractal Audio Systems' Axe-FX II guitar
@@ -86,7 +86,7 @@ regime and export presets to share with others or to store in a library.
 
 Downloaded and exported presets contain exactly the same data; only the
 filename is different. The name of a download preset *must* end with
-exactly "Preset<digits>.syx". Additional words at the beginning of the
+exactly `Preset<digits>.syx`. Additional words at the beginning of the
 filename (e.g. a timestamp) must be set off by at least one space. Any
 preset file not adhering to these naming conventions will be treated as
 a preset export file.
