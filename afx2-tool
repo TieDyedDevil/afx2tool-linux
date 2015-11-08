@@ -9,7 +9,7 @@
 
 [ "$AFX2TOOL_TRACE" = "1" ] && set -x
 
-VERSION=0.9.5
+VERSION=1.0
 
 ##
 # Help and preflight

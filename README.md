@@ -2,8 +2,8 @@ AFX II Tool
 ===========
 
 ```
-version: 0.9.5
-Oct 8, 2015
+version: 1.0
+Nov 7, 2015
 ```
 
 The `afx2-tool` works with Fractal Audio Systems' Axe-FX II guitar
@@ -110,6 +110,16 @@ A preset, for example, depends upon system settings and possibly a user
 cab. It is up to you to download all necessary files; the `afx2-tool` does
 not keep track of dependencies.
 
+Cab (IR) Names
+--------------
+
+The `afx2-tool` does not extract Cabinet/IR names from the Axe-FX. Instead,
+it uses the ordinal of the user cabinet.
+
+This is done because `afx2-tool` currently has no robust way to determine
+where user cabinets begin in the list of cabinets which is front-loaded
+with system cabinets.
+
 File Compatibility
 ------------------
 
@@ -198,10 +208,10 @@ Current Implementation Status
 -----------------------------
 
 Although `afx2-tool` is designed to support all Axe-FX II models, it
-has only been tested (as I write this note) on my own Axe-FX II XL+.
+has had only limited testing.
 
-Likewise, although `afx2-tool` is written using common Linux tools,
-I have only tested it on my own Fedora 22 systems.
+Likewise, although `afx2-tool` is written using common Linux tools, it
+has been tested only on a small number of Linux distributions.
 
 Support
 -------
