@@ -2,14 +2,16 @@ AFX II Tool
 ===========
 
 ```
-version: 1.0
-Nov 7, 2015
+version: 1.0.1
+Jun 21, 2016
 ```
 
 The `afx2-tool` works with Fractal Audio Systems' Axe-FX II guitar
 processors. The Mark 1, Mark 2, FX and FX+ models are all supported. You
 can use the `afx2-tool` to backup and restore individual patches, patch
 banks, user cabs (IRs) and system data.
+
+You can also use `afx2-tool` to upload new firmware to your Axe-FX II.
 
 The `afx2-tool` is designed to run from the command line or a script.
 
@@ -25,7 +27,7 @@ Your Linux system must be connected to the Axe-FX via a USB cable. In
 order for your computer to be able to communicate with the Axe-FX, the
 computer must first load a driver onto the Axe-FX. This driver loader
 can be enabled on your computer using the `afx2usb-linux` package;
-you'll need to install `afx2usb-linux` before using `afx2-tool`.
+you'll need to install and run `afx2usb-linux` before using `afx2-tool`.
 
 Installation
 ------------
@@ -51,9 +53,13 @@ Prefix Export vs. Download
 The `afx2-tool` has two ways to save an Axe-FX preset to a file: export
 and download.
 
-The export operation saves the contents of the Axe-FX edit buffer. The
-preset number and name are used to create the name of the file. Any
-unsaved modifications in the edit buffer will be saved to the file.
+The export (`-E`) operation saves the contents of the Axe-FX edit
+buffer. The preset number and name are used to create the name of the
+file. Any unsaved modifications in the edit buffer will be saved to
+the file.
+
+*IMPORTANT*: Unsaved changes in the Axe-FX edit buffer are lost by the
+`-b`, `-e` and `-p` options.
 
 To export a preset not already in the edit buffer, `afx2-tool` first
 selects the preset.
@@ -78,7 +84,7 @@ presets without confirmation.
 
 An exported preset is stored only in the Axe-FX edit buffer until you
 manually save the preset using the Axe-FX's front-panel STORE button;
-this gives you the opportunity to audition the patch and then save it
+this gives you the opportunity to audition the preset and then save it
 to a location of your choosing.
 
 You should, as a rule of thumb, download presets as part of your backup
@@ -109,6 +115,17 @@ Your Axe-FX programming depends upon information stored in several places.
 A preset, for example, depends upon system settings and possibly a user
 cab. It is up to you to download all necessary files; the `afx2-tool` does
 not keep track of dependencies.
+
+To be clear: to back up all of your Axe-FX programming, you must download
+(or export) all of your presets or banks, all of your user cabs and the
+system data. I suggest doing all of this in a single command. For example,
+the following command will download preset banks A through D, user cabs
+1 through 20 and the system data and prepend the same timestamp to all
+files so you'll know that they belong together:
+
+```
+$ afx2-tool -t -b A-D -i 1-20 -s
+```
 
 Cab (IR) Names
 --------------
@@ -158,6 +175,9 @@ or gain. Note that `afx2-tool` will, when it has finished exporting all
 patches in the specified range, select the patch that was active prior
 to the downloads.
 
+Display Offset
+--------------
+
 If the lowest-numbered patch on your Axe-FX is patch 001, add the `-1`
 option to your `afx2-tool` command in order to make patch numbers
 on the command line match the patch numbers on your Axe-FX. If the
@@ -185,24 +205,20 @@ $ afx2-tool -u Preset512.syx -u Preset513.syx -u Preset514.syx -u System.syx
 Firmware Upload
 ---------------
 
-While the `afx2-tool` will not upload a new firmware file to your Axe-FX II,
-it is very easy to do so using `amidi`:
+The `afx2-tool` may be used to upload a new firmware file to your Axe-FX II:
 
 1. Connect your computer to the Axe-FX II via a USB cable. Note that you must
    have already installed the Axe-FX II driver setup on your computer.
 
-2. Run this command on your computer: `$ amidi -l` . Note the port name
-   reported for your Axe-FX II.
+2. Press the UTILITY button on your Axe-FX and navigate to the FIRMWARE page.
 
-3. Press the UTILITY button on your Axe-FX and navigate to the FIRMWARE page.
+3. Press the ENTER button to ready the Axe-FX to receive new firmware.
 
-4. Press the ENTER button to ready the Axe-FX to receive new firmware.
+4. Run this command on your computer: `$ afx2-tool -u <filename>` , where
+   `<filename>` is the name of the Axe-FX II firmware file; this will have a
+   `.syx` extension.
 
-5. Run this command on your computer: `$ amidi -p <port name> -s <filename>` ,
-   where `<filename>` is the name of the Axe-FX II firmware file; this will
-   have a `.syx` extension.
-
-6. Watch the screen on your Axe-FX II; follow its instructions.
+5. Watch the screen on your Axe-FX II; follow its instructions.
 
 Current Implementation Status
 -----------------------------

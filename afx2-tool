@@ -1,4 +1,4 @@
-#! /bin/bash
+#! /bin/sh
 
 #: backup and restore Axe-FX II data
 
@@ -9,7 +9,7 @@
 
 [ "$AFX2TOOL_TRACE" = "1" ] && set -x
 
-VERSION=1.0
+VERSION=1.0.1
 
 ##
 # Help and preflight
@@ -17,10 +17,13 @@ VERSION=1.0
 
 PGM=$(basename $0)
 
-function help () {
-	cat <<EOF
-$PGM $VERSION
+version () {
+	echo $PGM $VERSION
+	exit 1
+}
 
+help () {
+	cat <<EOF
 usage: $PGM ...
 
   Options
@@ -36,6 +39,7 @@ usage: $PGM ...
    -s           download system data
    -u <file>    upload file
   Other
+   -v           display $PGM version
    -h           help
 
   Options are processed before actions.
@@ -54,25 +58,60 @@ EOF
 	exit 1
 }
 
-function usage () {
+usage () {
 	echo "usage: $PGM -h|..."
 	exit 1
 }
 
 [ $# -eq 0 ] && usage
 
-function fail () {
+fail () {
 	echo >&2 $PGM: $@
 	exit 1
 }
 
 which amidi > /dev/null || fail amidi not on \$PATH
-[ ${BASH_VERSINFO[0]} -ge 4 ] || fail bash 4 or later required
 
-function prompt () {
-	local reply
-	read -n 1 -s -p "$@; press any key " reply
+printf_cmd=`which printf`
+[ "`$printf_cmd '\x40'`" = "@" ] || fail "$printf_cmd doesn't handle \\x escape"
+
+hex2char () {
+	$printf_cmd '\x'$1
+}
+
+prompt () {
+	printf "$@; press Enter "
+	stty -echo
+	read ignore
+	stty echo
 	echo [confirmed]
+}
+
+aset () {
+	eval "${1}${2}=\"${3}\""
+}
+
+aref () {
+	v=${1}${2}
+	echo `eval "echo \\$${v}"`
+}
+
+substring () {
+	if [ $2 -lt 0 ]; then
+		s=$(( ${#1}+$2+1 ))
+	else
+		s=$(( $2+1 ))
+	fi
+	if [ -n "$3" ]; then
+		if [ $3 -lt 0 ]; then
+			l=$(( ${#1}+$3-$s+1 ))
+		else
+			l=$3
+		fi
+		echo "$1" | awk "{ print substr(\$0, $s, $l); }"
+	else
+		echo "$1" | awk "{ print substr(\$0, $s; }"
+	fi
 }
 
 ##
@@ -90,7 +129,7 @@ STAMP=
 PREFIX=F0000174
 PREFIX_NIBBLES=${#PREFIX}
 MODEL_NIBBLES=2
-HEADER_NIBBLES=$(( $PREFIX_NIBBLES + $MODEL_NIBBLES ))
+HEADER_NIBBLES=$(( $PREFIX_NIBBLES+$MODEL_NIBBLES ))
 CMD_NIBBLES=2
 SUM_NIBBLES=2
 TRAILER=F7
@@ -101,20 +140,21 @@ CMD_GET_EDIT_BUFFER=037F00
 CMD_GET_PRESET=03       # followed by 0-origin preset number (2 bytes)
 CMD_PUT_EDIT_BUFFER=1D  # followed by 0-origin preset number (2 bytes)
 CMD_RECALL=3C           # followed by 0-origin preset number (2 bytes)
-declare -A CMD_GET_SYSTEM_DATA
-CMD_GET_SYSTEM_DATA=(['03']=1C03 ['06']=43 ['07']=43)
+aset CMD_GET_SYSTEM_DATA 03 1C03
+aset CMD_GET_SYSTEM_DATA 06 43
+aset CMD_GET_SYSTEM_DATA 07 43
 CMD_GET_PRESET_BANK=1C  # followed by 0-origin bank number
 CMD_GET_USER_CAB=19     # followed by 0-origin cab number (2 bytes XL/XL+)
 INQUIRY_MODEL=7F
 CMD_INQUIRY=00
 
-declare -a MODELS
-MODELS=('03' '06' '07')
-declare -A MODEL_NAMES
-MODEL_NAMES=(['03']='AXE-FX II' ['06']='AXE-FX II XL' ['07']='AXE-FX II XL+')
+MODELS='03 06 07'
+aset MODEL_NAMES 03 'AXE-FX II'
+aset MODEL_NAMES 06 'AXE-FX II XL'
+aset MODEL_NAMES 07 'AXE-FX II XL+'
 
-function check_model () {
-	for m in ${MODELS[@]}; do
+check_model () {
+	for m in $MODELS; do
 		[ $m = "$MODEL" ] && return
 	done
 	fail unknown model \($MODEL\)
@@ -124,81 +164,149 @@ function check_model () {
 # Conversions
 ##
 
-declare -a TOHEX
-TOHEX=('0' '1' '2' '3' '4' '5' '6' '7' '8' '9' 'A' 'B' 'C' 'D' 'E' 'F')
+aset TOHEX 0 0
+aset TOHEX 1 1
+aset TOHEX 2 2
+aset TOHEX 3 3
+aset TOHEX 4 4
+aset TOHEX 5 5
+aset TOHEX 6 6
+aset TOHEX 7 7
+aset TOHEX 8 8
+aset TOHEX 9 9
+aset TOHEX 10 A
+aset TOHEX 11 B
+aset TOHEX 12 C
+aset TOHEX 13 D
+aset TOHEX 14 E
+aset TOHEX 15 F
 
-declare -A FROMHEX
-FROMHEX=(['0']=0  ['1']=1  ['2']=2  ['3']=3  ['4']=4  ['5']=5  ['6']=6  ['7']=7
-	 ['8']=8  ['9']=9  ['A']=10 ['B']=11 ['C']=12 ['D']=13 ['E']=14 ['F']=15
-                           ['a']=10 ['b']=11 ['c']=12 ['d']=13 ['e']=14 ['f']=15)
+aset FROMHEX 0 0
+aset FROMHEX 1 1
+aset FROMHEX 2 2
+aset FROMHEX 3 3
+aset FROMHEX 4 4
+aset FROMHEX 5 5
+aset FROMHEX 6 6
+aset FROMHEX 7 7
+aset FROMHEX 8 8
+aset FROMHEX 9 9
+aset FROMHEX a 10
+aset FROMHEX A 10
+aset FROMHEX b 11
+aset FROMHEX B 11
+aset FROMHEX c 12
+aset FROMHEX C 12
+aset FROMHEX d 13
+aset FROMHEX D 13
+aset FROMHEX e 14
+aset FROMHEX E 14
+aset FROMHEX f 15
+aset FROMHEX F 15
 
 # Decode two hexadecimal nibbles to an integer value.
-function decode () {
-	echo $(( (${FROMHEX[${1:0:1}]}<<4)+${FROMHEX[${1:1:1}]} ))
+decode () {
+	d1=`substring $1 0 1`
+	d2=`substring $1 1 1`
+	hn=`aref FROMHEX $d1`
+	ln=`aref FROMHEX $d2`
+	echo $(( ($hn*16)+$ln ))
 }
 
 # Encode an integer value to two hexadecimal nibbles.
-function encode () {
-	echo ${TOHEX[$(( $1>>4&0xf ))]}${TOHEX[$(( $1&0xf ))]}
+encode () {
+	echo `aref TOHEX $(( $1>>4&0xf ))``aref TOHEX $(( $1&0xf ))`
 }
 
-declare -a BANK_NAMES
-BANK_NAMES=('A' 'B' 'C' 'D' 'E' 'F' 'G' 'H')
+aset BANK_NAMES 0 A
+aset BANK_NAMES 1 B
+aset BANK_NAMES 2 C
+aset BANK_NAMES 3 D
+aset BANK_NAMES 4 E
+aset BANK_NAMES 5 F
+aset BANK_NAMES 6 G
+aset BANK_NAMES 7 H
 
-declare -A BANK_NUMBERS
-BANK_NUMBERS=(['A']=0 ['B']=1 ['C']=2 ['D']=3 ['E']=4 ['F']=5 ['G']=6 ['H']=7
-              ['a']=0 ['b']=1 ['c']=2 ['d']=3 ['e']=4 ['f']=5 ['g']=6 ['h']=7)
+aset BANK_NUMBERS a 0
+aset BANK_NUMBERS b 1
+aset BANK_NUMBERS c 2
+aset BANK_NUMBERS d 3
+aset BANK_NUMBERS e 4
+aset BANK_NUMBERS f 5
+aset BANK_NUMBERS g 6
+aset BANK_NUMBERS h 7
+aset BANK_NUMBERS A 0
+aset BANK_NUMBERS B 1
+aset BANK_NUMBERS C 2
+aset BANK_NUMBERS D 3
+aset BANK_NUMBERS E 4
+aset BANK_NUMBERS F 5
+aset BANK_NUMBERS G 6
+aset BANK_NUMBERS H 7
 
 # Convert zero-origin bank number to bank name.
-function bank_number_to_name () {
-	echo ${BANK_NAMES[$1]}
+bank_number_to_name () {
+	echo `aref BANK_NAMES $1`
 }
 
 # Convert bank name to zero-origin bank number.
-function bank_name_to_number () {
-	echo ${BANK_NUMBERS[$1]}
+bank_name_to_number () {
+	n=`aref BANK_NUMBERS $1`
+	[ -n "$n" ] || fail invalid bank name $1
+	echo $n
+}
+
+# Validate unsigned integer.
+validate_integer () {
+	echo $1 | grep -q '^[0-9]\+$' || fail invalid number $1
 }
 
 # Convert integer lists and ranges to an integer set.
-function make_integer_set () {
-	local l=`echo $1|tr , ' '`
-	local r=
-	local m
+make_integer_set () {
+	l=`echo $1|tr , ' '`
+	r=
 	for m in $l; do
 		case $m in
 		  *-*)
-			local s=${m%-*}; local f=${m#*-}
+			s=${m%-*}
+			f=${m#*-}
+			validate_integer $s
+			validate_integer $f
 			[ $s -lt $f ] || fail invalid range
-			local i
-			for (( i=s; i<=f; ++i )); do
-				r+="$i "
+			i=$s
+			while [ $i -le $f ]; do
+				r="$r$i "
+				i=$(( $i+1 ))
 			done
 			;;
 		  -*|*-) fail invalid range ;;
-		  *) r+="$m " ;;
+		  *)
+			validate_integer $m
+			r="$r$m "
+			;;
 		esac
 	done
 	echo $r
 }
 
 # Convert bank-name lists and ranges to an integer set.
-function make_bank_set () {
-	local l=`echo $1|tr , ' '`
-	local r=
-	local m
+make_bank_set () {
+	l=`echo $1|tr , ' '`
+	r=
 	for m in $l; do
 		case $m in
 		  *-*)
-			local s=`bank_name_to_number ${m%-*}`
-			local f=`bank_name_to_number ${m#*-}`
+			s=`bank_name_to_number ${m%-*}`
+			f=`bank_name_to_number ${m#*-}`
 			[ $s -lt $f ] || fail invalid range
-			local i
-			for (( i=s; i<=f; ++i )); do
-				r+="$i "
+			i=$s
+			while [ $i -le $f ]; do
+				r="$r$i "
+				i=$(( $i+1 ))
 			done
 			;;
 		  -*|*-) fail invalid range ;;
-		  *) r+="`bank_name_to_number $m` " ;;
+		  *) r="$r`bank_name_to_number $m` " ;;
 		esac
 	done
 	echo $r
@@ -209,23 +317,23 @@ function make_bank_set () {
 ##
 
 # Read enough hex from the beginning of file to be used for identification.
-function read_ident_bytes () {
+read_ident_bytes () {
 	od -N 12 -A none -x --endian=big "$1"|tr -d ' '|tr 'abcdef' 'ABCDEF'
 }
 
 # Check whether the given file can be read by the connected Axe-FX.
-function check_compatible_file () {
-	local ident=`read_ident_bytes "$1"`
-	local prefix=${ident:0:$PREFIX_NIBBLES}
-	local model=${ident:$PREFIX_NIBBLES:$MODEL_NIBBLES}
+check_compatible_file () {
+	ident=`read_ident_bytes "$1"`
+	prefix=`substring $ident 0 $PREFIX_NIBBLES`
+	model=`substring $ident $PREFIX_NIBBLES $MODEL_NIBBLES`
 	[ $prefix = $PREFIX ] || fail not an Axe-FX file
 	[ $model -eq $MODEL ] || fail file not compatible with model
 }
 
 # Return true if the file is a preset file that will load into the edit buffer.
-function is_preset_file () {
-	local ident=`read_ident_bytes "$1"`
-	local check=${ident:$HEADER_NIBBLES:6}
+is_preset_file () {
+	ident=`read_ident_bytes "$1"`
+	check=`substring $ident $HEADER_NIBBLES 6`
 	[ $check = '777F00' ]
 }
 
@@ -234,74 +342,75 @@ function is_preset_file () {
 ##
 
 # Construct a control change message with parameters: channel, number, value.
-function make_cc () {
-	local chan=$(( $1-1 ))
-	local byte1=`encode $(( (0xb<<4)+($chan&0xf) ))`
-	local byte2=`encode $(( $2&0x7f ))`
-	local byte3=`encode $(( $3&0x7f ))`
+make_cc () {
+	chan=$(( $1-1 ))
+	byte1=`encode $(( (0xb*16)+($chan&0xf) ))`
+	byte2=`encode $(( $2&0x7f ))`
+	byte3=`encode $(( $3&0x7f ))`
 	echo $byte1$byte2$byte3
 }
 
 # Construct a program change message with parameters: channel, program.
-function make_pc () {
-	local chan=$(( $1-1 ))
-	local byte1=`encode $(( (0xc<<4)+($chan&0xf) ))`
-	local byte2=`encode $(( $2&0x7f ))`
+make_pc () {
+	chan=$(( $1-1 ))
+	byte1=`encode $(( (0xc*16) ))`
+	byte2=`encode $(( $2&0x7f ))`
 	echo $byte1$byte2
 }
 
 # Compute a checksum from the given hex data.
-function checksum () {
-	local sum=0
-	local len=${#1}
-	local i
-	for (( i=0; i<len; i+=2 )); do
-		local byte=`decode ${1:$i:2}`
+checksum () {
+	sum=0
+	len=${#1}
+	i=0
+	while [ $i -lt $len ]; do
+		byte=$(decode `substring $1 $i 2`)
 		sum=$(( sum^byte ))
+		i=$(( $i+2 ))
 	done
 	sum=$(( sum&0x7f ))
 	encode sum
 }
 
-function display_connection () {
-	echo PORT $PORT CHANNEL $CHANNEL MODEL ${MODEL_NAMES[$MODEL]}
+display_connection () {
+	echo PORT $PORT CHANNEL $CHANNEL MODEL `aref MODEL_NAMES $MODEL`
 }
 
 # Detect the MIDI-over-USB port connected to the AXE-FX II.
-function detect_port () {
-	local count=$( amidi -l 2>/dev/null|grep 'AXE-FX II MIDI'|wc -l )
+detect_port () {
+	count=$( amidi -l 2>/dev/null|grep 'AXE-FX II MIDI'|wc -l )
 	[ $count -gt 1 ] && fail multiple AXE-FX II MIDI ports detected
 	PORT=$( amidi -l 2>/dev/null|grep 'AXE-FX II MIDI'|awk '{ print $2 }' )
 	[ -n "$PORT" ] || fail MIDI port not detected
 }
 
 # Send a MIDI command.
-function send_midi () {
+send_midi () {
 	amidi -p $PORT -S $1
 }
 
 # Check for a sequence of hex dgits.
-function check_hex () {
-	local unexpected="`echo \"$@\"|tr -d '0123456789abcdefABCDEF '`"
+check_hex () {
+	unexpected="`echo \"$@\"|tr -d '0123456789abcdefABCDEF '`"
 	[ -z "$unexpected" ]
 }
 
 # Validate the checkum in a sysex message.
-function validate () {
-	local check=${1: -4:$SUM_NIBBLES}
-	local sum=`checksum ${1:0:-4}`
+validate () {
+	check=`substring $1 -4 $SUM_NIBBLES`
+	sum=$(checksum `substring $1 0 -4`)
 	[ "$sum" = "$check" ]
 }
 
 # Discard input still in the MIDI receive buffer.
-function flush_input () {
+flush_input () {
 	[ -z "`amidi -p $PORT -d -t 1`" ] || flush_input
 }
 
 # Send a sysex command and receive the response.
-function send_cmd_recv_midi () {
+send_cmd_recv_midi () {
 	flush_input
-	local resp=`amidi -p $PORT -S $1 -t 2 -d|tr -d ' '`
+	resp=`amidi -p $PORT -S $1 -t 2 -d|tr -d ' '`
 	[ $? -eq 0 ] || fail MIDI send/receive error
 	check_hex "$resp" || fail unexpected "$resp"
 	validate $resp || fail checksum error
@@ -309,55 +418,57 @@ function send_cmd_recv_midi () {
 }
 
 # Send a sysex command and save the response to a named file.
-function send_cmd_recv_midi_to_file () {
-	local cmd=$1
+send_cmd_recv_midi_to_file () {
+	cmd=$1
 	shift
 	flush_input
 	amidi -p $PORT -S $cmd -t 5 -r "$@"
 }
 
 # Remove header, checksum and trailer from response, leaving payload.
-function response_payload () {
-	local head=$HEADER_NIBBLES+CMD_NIBBLES
-	local tail=$(( -(SUM_NIBBLES+TRAILER_NIBBLES) ))
-	echo ${1:$head:$tail}
+response_payload () {
+	head=$(( $HEADER_NIBBLES+CMD_NIBBLES ))
+	tail=$(( -($SUM_NIBBLES+$TRAILER_NIBBLES) ))
+	echo `substring $1 $head $tail`
 }
 
 # Unpack 14-bit integer.
-function unpack14 () {
-	echo $(( (0x${1:0:2}<<7)+0x${1:2:2} ))
+unpack14 () {
+	echo $(( (0x`substring $1 0 2`*128)+0x`substring $1 2 2` ))
 }
 
 # Pack 14-bit integer.
-function pack14 () {
+pack14 () {
 	echo `encode $(( $1/128 ))``encode $(( $1%128 ))`
 }
 
 # Unpack zero-terminated string.
-function unpackzs () {
-	local len=$(( ${#1}-2 ))
-	local i
-	for (( i = 0; i<len; i+=2 )); do
-		echo -en "\x${1:$i:2}"
+unpackzs () {
+	len=$(( ${#1}-2 ))
+	i=0
+	while [ $i -lt $len ]; do
+		hex2char `substring $1 $i 2`
+		i=$(( $i+2 ))
 	done
 	echo
 }
 
 # Extract trimmed name from response.
-function patch_name () {
-	local data=$(response_payload $1)
-	local len=$(( ${#data}-2 ))
-	local i
-	for (( i = len-2; i>=0; i-=2 )); do
-		local char=${data:$i:2}
-		[ $char != "20" -a $char != "00" ] && break
+patch_name () {
+	data=$(response_payload $1)
+	len=$(( ${#data}-2 ))
+	i=$(( $len-1 ))
+	while [ $i -ge 0 ]; do
+		char=`substring $data $i 2`
+		[ $char != "20" ] && [ $char != "00" ] && break
+		i=$(( $i-2 ))
 	done
-	echo $(unpackzs ${data:0:$i+2}00)
+	echo $(unpackzs `substring $data 0 $(( $i+2 ))`00)
 }
 
 # Extract 14-bit number from response.
-function patch_number () {
-	local data=$(response_payload $1)
+patch_number () {
+	data=$(response_payload $1)
 	unpack14 $data
 }
 
@@ -366,67 +477,67 @@ function patch_number () {
 ##
 
 # Construct a sysex command to get the model number.
-function get_model () {
-	local body=$PREFIX$INQUIRY_MODEL$CMD_INQUIRY
+get_model () {
+	body=$PREFIX$INQUIRY_MODEL$CMD_INQUIRY
 	echo "$body`checksum $body`$TRAILER"
 }
 
 # Construct a sysex command to get the number of the current preset.
-function get_preset_number () {
-	local body=$HEADER$CMD_GET_PRESET_NUMBER
+get_preset_number () {
+	body=$HEADER$CMD_GET_PRESET_NUMBER
 	echo "$body`checksum $body`$TRAILER"
 }
 
 # Construct a sysex command to get the name of the current preset.
-function get_preset_name () {
-	local body=$HEADER$CMD_GET_PRESET_NAME
+get_preset_name () {
+	body=$HEADER$CMD_GET_PRESET_NAME
 	echo "$body`checksum $body`$TRAILER"
 }
 
 # Construct a sysex command to get the current edit buffer.
-function get_edit_buffer () {
-	local body=$HEADER$CMD_GET_EDIT_BUFFER
+get_edit_buffer () {
+	body=$HEADER$CMD_GET_EDIT_BUFFER
 	echo "$body`checksum $body`$TRAILER"
 }
 
 # Construct a sysex command to get a numbered preset.
-function get_preset () {
-	local presetnum=`pack14 $1`
-	local body=$HEADER$CMD_GET_PRESET$presetnum
+get_preset () {
+	presetnum=`pack14 $1`
+	body=$HEADER$CMD_GET_PRESET$presetnum
 	echo "$body`checksum $body`$TRAILER"
 }
 
 # Construct a sysex command to get the system data.
-function get_system_data () {
-	local body=$HEADER${CMD_GET_SYSTEM_DATA[$MODEL]}
+get_system_data () {
+	body=$HEADER`aref CMD_GET_SYSTEM_DATA $MODEL`
 	echo "$body`checksum $body`$TRAILER"
 }
 
 # Construct a sysex command to get a numbered preset bank.
-function get_preset_bank () {
-	local body=$HEADER$CMD_GET_PRESET_BANK`encode $1`
+get_preset_bank () {
+	body=$HEADER$CMD_GET_PRESET_BANK`encode $1`
 	echo "$body`checksum $body`$TRAILER"
 }
 
 # Construct a sysex command to get a user cab.
-function get_user_cab () {
+get_user_cab () {
 	case $MODEL in
 	  03) local cabnum=`encode $(( $1&0x7f ))` ;;
 	  06|07) local cabnum=`pack14 $1` ;;
 	esac
-	local body=$HEADER$CMD_GET_USER_CAB$cabnum
+	body=$HEADER$CMD_GET_USER_CAB$cabnum
 	echo "$body`checksum $body`$TRAILER"
 }
 
 # Construct a sysex command to put the edit buffer into preset memory.
-function put_edit_buffer () {
-	local body=$HEADER$CMD_PUT_EDIT_BUFFER`pack14 $1`
+put_edit_buffer () {
+	body=$HEADER$CMD_PUT_EDIT_BUFFER`pack14 $1`
 	echo "$body`checksum $body`$TRAILER"
 }
 
 # Construct a sysex command to recall preset memory into the edit buffer.
-function recall () {
-	local body=$HEADER$CMD_RECALL`pack14 $1`
+recall () {
+	body=$HEADER$CMD_RECALL`pack14 $1`
 	echo "$body`checksum $body`$TRAILER"
 }
 
@@ -435,24 +546,24 @@ function recall () {
 ##
 
 # Ask the AFX for its model number; build the header for other sysex commands.
-function init_for_afx_model () {
+init_for_afx_model () {
 	flush_input
-	local resp=$(send_cmd_recv_midi `get_model`)
+	resp=$(send_cmd_recv_midi `get_model`)
 	[ -n "$resp" ] || fail no response from MIDI port
-	MODEL=${resp:8:$MODEL_NIBBLES}
+	MODEL=`substring $resp 8 $MODEL_NIBBLES`
 	check_model
 	HEADER=$PREFIX$MODEL
 }
 
 # Return the number of the selected preset.
-function query_preset_number () {
+query_preset_number () {
 	echo $(patch_number $(send_cmd_recv_midi $(get_preset_number)))
 }
 
 # Construct a filename for the current preset, so long as the preset is named.
-function query_patch_filename () {
-	local number=$(query_preset_number)
-	local name=$(patch_name $(send_cmd_recv_midi $(get_preset_name)))
+query_patch_filename () {
+	number=$(query_preset_number)
+	name=$(patch_name $(send_cmd_recv_midi $(get_preset_name)))
 	if [ -n "$name" ]; then
 		echo "$STAMP$number-$name.syx"
 	else
@@ -462,58 +573,58 @@ function query_patch_filename () {
 }
 
 # Select a preset.
-function select_preset () {
-	local patch=$(( $1 - $DISPLAY_OFFSET ))
-	local bank=$(( $patch / 128 ))
-	local preset=$(( $patch % 128 ))
+select_preset () {
+	patch=$(( $1-$DISPLAY_OFFSET ))
+	bank=$(( $patch/128 ))
+	preset=$(( $patch%128 ))
 	send_midi `make_cc $CHANNEL 0 $bank`
 	send_midi `make_pc $CHANNEL $preset`
 }
 
 # Save the edit buffer to preset storage.
-function save_edit_buffer_to_preset () {
+save_edit_buffer_to_preset () {
 	send_midi `put_edit_buffer $1`
 }
 
 # Download a numbered preset bank to a file.
-function download_preset_bank () {
-	local bankname=`bank_number_to_name $1`
-	local filename="${STAMP}Bank$bankname.syx"
-	echo -n "$filename"
+download_preset_bank () {
+	bankname=`bank_number_to_name $1`
+	filename="${STAMP}Bank$bankname.syx"
+	printf "%s" "$filename"
 	send_cmd_recv_midi_to_file `get_preset_bank $1` "$filename"
 }
 
 # Download a numbered user cab (IR) to a file.
-function download_user_cab () {
-	local filename="${STAMP}Cab$1.syx"
-	echo -n "$filename"
+download_user_cab () {
+	filename="${STAMP}Cab$1.syx"
+	printf "%s" "$filename"
 	send_cmd_recv_midi_to_file `get_user_cab $1` "$filename"
 }
 
 # Download a numbered preset to a file.
-function download_preset () {
-	local filename="${STAMP}Preset$1.syx"
-	echo -n "$filename"
+download_preset () {
+	filename="${STAMP}Preset$1.syx"
+	printf "%s" "$filename"
 	send_cmd_recv_midi_to_file `get_preset $1` "$filename"
 }
 
 # Download the system globals to a file.
-function download_system_data () {
-	local filename="${STAMP}System.syx"
-	echo -n "$filename"
+download_system_data () {
+	filename="${STAMP}System.syx"
+	printf "%s" "$filename"
 	send_cmd_recv_midi_to_file `get_system_data` "$filename"
 }
 
 # Export the current preset to a file having the preset's number and name.
-function export_selected_preset () {
-	local filename=`query_patch_filename`
+export_selected_preset () {
+	filename=`query_patch_filename`
 	[ -n "$filename" ] || return
-	echo -n "$filename"
+	printf "%s" "$filename"
 	send_cmd_recv_midi_to_file `get_edit_buffer` "$filename"
 }
 
 # Recall preset memory into the edit buffer.
-function recall_preset () {
+recall_preset () {
 	send_midi `recall $1`
 }
 
@@ -522,34 +633,32 @@ function recall_preset () {
 ##
 
 # Download one or more preset banks.
-function download_preset_banks () {
-	local b
+download_preset_banks () {
+	orig=$(query_preset_number)
 	for b in `make_bank_set $@`; do
 		download_preset_bank $b
 	done
+	recall_preset $orig
 }
 
 # Download one or more presets.
-function download_preset_set () {
-	local p
+download_preset_set () {
 	for p in `make_integer_set $@`; do
 		download_preset $p
 	done
 }
 
 # Download one or more user cabs.
-function download_user_cab_set () {
-	local c
+download_user_cab_set () {
 	for c in `make_integer_set $@`; do
 		download_user_cab $c
 	done
 }
 
 # Export one or more presets.
-function export_preset_set () {
+export_preset_set () {
 	prompt "Mute connected amplifiers and monitors"
-	local orig=$(query_preset_number)
-	local p
+	orig=$(query_preset_number)
 	for p in `make_integer_set $@`; do
 		select_preset $p
 		export_selected_preset
@@ -562,23 +671,22 @@ function export_preset_set () {
 ##
 
 # Parse preset number from file name.
-function parse_preset_number () {
-	[[ "$1" =~ ^(.* )?Preset([[:digit:]]+)\.syx$ ]] && \
-		echo ${BASH_REMATCH[2]}
+parse_preset_number () {
+	echo "$1"|awk '{ match($0, "^(.* )?Preset([[:digit:]]+).syx$", m); print m[2]; }'
 }
 
 # Upload an Axe-FX II file.
-function upload_file () {
+upload_file () {
 	check_compatible_file "$1"
 	echo $(basename "$1")
 	amidi -p $PORT -s "$1"
 	echo "Uploaded"
 	if is_preset_file "$1"; then
-		local dest=`parse_preset_number "$1"`
+		dest=`parse_preset_number "$1"`
 		if [ -z "$dest" ]; then
 			prompt "Save preset from front panel"
 		else
-			local orig=$(query_preset_number)
+			orig=$(query_preset_number)
 			save_edit_buffer_to_preset $dest
 			recall_preset $orig
 			echo "Saved to $dest"
@@ -590,12 +698,13 @@ function upload_file () {
 # Option initialization
 ##
 
-while getopts ":c:1tb:Ee:p:si:u:h" OPTION; do
+while getopts ":c:1tb:Ee:p:si:u:vh" OPTION; do
 	case $OPTION in
 	  c) CHANNEL=$OPTARG ;;
 	  1) DISPLAY_OFFSET=1 ;;
 	  t) STAMP="`date +'%F@%R:%S'` " ;;
 	  b|E|e|p|s|i|u) ;;  # actions handled below
+	  v) version ;;
 	  h) help ;;
 	  *) fail invalid option -$OPTARG ;;
 	esac
@@ -609,7 +718,7 @@ display_connection
 ##
 
 OPTIND=1
-while getopts ":c:1tb:Ee:p:si:u:h" OPTION; do
+while getopts ":c:1tb:Ee:p:si:u:vh" OPTION; do
 	case $OPTION in
 	  c|1|t) ;;          # settings handled above
 	  E) export_selected_preset ;;
@@ -622,5 +731,5 @@ while getopts ":c:1tb:Ee:p:si:u:h" OPTION; do
 	  *) fail invalid option -$OPTARG ;;
 	esac
 done
-shift $(( $OPTIND - 1 ))
+shift $(( $OPTIND-1 ))
 [ -z "$@" ] || fail unprocessed args: $@
